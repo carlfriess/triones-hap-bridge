@@ -6,6 +6,7 @@
   "author": "Carl Friess",
   "dependencies": {
     "@abandonware/noble": "^1.9.2-15",
-    "hap-nodejs": "^0.9.8"
+    "hap-nodejs": "^0.9.8",
+    "macaddress": "^0.5.2"
   }
 }

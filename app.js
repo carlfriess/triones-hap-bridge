@@ -1,5 +1,6 @@
 const noble = require("@abandonware/noble");
 const hap = require("hap-nodejs");
+const mac = require("macaddress");
 
 const Accessory = hap.Accessory;
 const Characteristic = hap.Characteristic;
@@ -11,6 +12,10 @@ function hsv2rgb(h, s, v) {
     let f = (n, k = (n + h / 60) % 6) => v - v * s * Math.max(Math.min(k, 4 - k, 1), 0);
     return [f(5), f(3), f(1)];
 }
+
+// Define a new accessory
+const accessoryUuid = hap.uuid.generate("Triones Bridge");
+const accessory = new Accessory("Triones Bridge", accessoryUuid);
 
 // Wait for Bluetooth adapter to power on and start scanning
 noble.on("stateChange", async (state) => {
@@ -32,12 +37,8 @@ noble.on("discover", async (peripheral) => {
         const ffd4 = characteristics.filter(c => c.uuid === "ffd4")[0];
         const ffd9 = characteristics.filter(c => c.uuid === "ffd9")[0];
 
-        // Define a new accessory
-        const accessoryUuid = hap.uuid.generate(peripheral.advertisement.localName);
-        const accessory = new Accessory(peripheral.advertisement.localName, accessoryUuid);
-
         // Define a new service
-        const lightService = new Service.Lightbulb("LED Flood Light");
+        const lightService = new Service.Lightbulb(peripheral.advertisement.localName, peripheral.advertisement.localName);
 
         // Define characteristics for the light service
         const onCharacteristic = lightService.getCharacteristic(Characteristic.On);
@@ -132,14 +133,17 @@ noble.on("discover", async (peripheral) => {
         // Add the service to the accessory
         accessory.addService(lightService);
 
-        // Publish the accessory
-        accessory.publish({
-            username: peripheral.address,
-            pincode: "123-45-678",
-            port: 0,
-            category: hap.Categories.LIGHTBULB,
-        });
-
     }
 
+});
+
+// Get a MAC address from the hardware
+mac.one().then(mac => {
+    // Publish the accessory
+    accessory.publish({
+        username: mac,
+        pincode: "123-45-678",
+        port: 0,
+        category: hap.Categories.BRIDGE,
+    });
 });
