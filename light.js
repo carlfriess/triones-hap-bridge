@@ -1,5 +1,6 @@
 const hap = require("hap-nodejs");
 
+const Accessory = hap.Accessory;
 const Characteristic = hap.Characteristic;
 const CharacteristicEventTypes = hap.CharacteristicEventTypes;
 const Service = hap.Service;
@@ -7,11 +8,17 @@ const Service = hap.Service;
 // Generic HomeKit light that uses HSV color controls
 class Light {
 
-    constructor(name) {
+    constructor(peripheral) {
 
-        this.name = name;
+        this.name = peripheral.advertisement.localName;
 
-        this.service = new Service.Lightbulb(name, name);
+        // Define a new accessory
+        const accessoryUuid = hap.uuid.generate(peripheral.address);
+        this.accessory = new Accessory(this.name, accessoryUuid);
+
+        // Define a new light service
+        this.service = new Service.Lightbulb(this.name);
+
         this.currentBrightness = 100;
         this.targetBrightness = 100;
         this.userBrightness = 100;
@@ -68,6 +75,23 @@ class Light {
             this.update();
             callback();
         });
+
+        // Add the service to the accessory
+        this.accessory.addService(this.service);
+
+        // Link to bluetooth peripheral
+        this.setPeripheral(peripheral).then(() => {
+
+            // Publish the accessory
+            this.accessory.publish({
+                username: peripheral.address,
+                pincode: "123-45-678",
+                port: 0,
+                category: hap.Categories.LIGHTBULB,
+            });
+
+            console.log(`Published accessory: ${ this.accessory.displayName }`);
+        })
     }
 
     update(next) {
