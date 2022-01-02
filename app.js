@@ -45,47 +45,88 @@ noble.on("discover", async (peripheral) => {
         const hueCharacteristic = lightService.getCharacteristic(Characteristic.Hue);
         const saturationCharacteristic = lightService.getCharacteristic(Characteristic.Saturation);
 
-        let brightness = 100;
-        let hue = 0;
-        let saturation = 0;
+        let currentBrightness = 100;
+        let targetBrightness = 100;
+        let userBrightness = 100;
+        let currentHue = 0;
+        let targetHue = 0;
+        let currentSaturation = 0;
+        let targetSaturation = 0;
+
+        function setColor(next) {
+
+            // If a fade is already running do nothing
+            if (!next && this.interval) return;
+
+            // Fade towards target color
+            const diffBrightness = targetBrightness - currentBrightness;
+            currentBrightness += Math.sign(diffBrightness) * Math.min(Math.abs(diffBrightness), 4);
+            const diffHue = targetHue - currentHue;
+            currentHue += Math.sign(diffHue) * Math.min(Math.abs(diffHue), 4);
+            const diffSaturation = targetSaturation - currentSaturation;
+            currentSaturation += Math.sign(diffSaturation) * Math.min(Math.abs(diffSaturation), 4);
+
+            // Check if we should just use white LEDs
+            if (currentSaturation <= 5) {
+                // Write brightness to device in white mode
+                ffd9.write(Buffer.from([0x56, 0xFF, 0xFF, 0xFF, currentBrightness / 100 * 0xFF, 0x0F, 0xAA]), true);
+            } else {
+                // Convert colors to RGB values and write to device
+                const [r, g, b] = hsv2rgb(currentHue, currentSaturation / 100, currentBrightness / 100);
+                ffd9.write(Buffer.from([0x56, r * 0xFF, g * 0xFF, b * 0xFF, 0x00, 0xF0, 0xAA]), true);
+            }
+
+            // Turn off light when brightness is zero
+            if (currentBrightness === 0) {
+                ffd9.write(Buffer.from([0xCC, 0x24, 0x33]), false);
+            }
+
+            if (!this.interval) {
+                this.interval = setInterval(() => setColor(true), 20);
+            }
+
+            if (diffBrightness === 0 && diffHue === 0 && diffSaturation === 0) {
+                clearInterval(this.interval)
+                this.interval = null;
+            }
+
+        }
 
         onCharacteristic.on(CharacteristicEventTypes.GET, callback => {
             ffd4.once("data", state => callback(undefined, state[2] === 0x23));
             ffd9.write(Buffer.from([0xEF, 0x01, 0x77]), false);
         });
         onCharacteristic.on(CharacteristicEventTypes.SET, (value, callback) => {
-            ffd9.write(Buffer.from([0xCC, value ? 0x23 : 0x24, 0x33]), false, () => callback());
-        });
-
-        function setColor(callback) {
-
-            // Check if we should just use white LEDs
-            if (saturation <= 5) {
-                // Write brightness to device in white mode
-                ffd9.write(Buffer.from([0x56, 0xFF, 0xFF, 0xFF, brightness / 100 * 0xFF, 0x0F, 0xAA]), false, () => callback());
+            if (value) {
+                ffd9.write(Buffer.from([0xCC, 0x23, 0x33]), false, () => callback());
+                targetBrightness = userBrightness;
+                setColor();
             } else {
-                // Convert colors to RGB values and write to device
-                const [r, g, b] = hsv2rgb(hue, saturation / 100, brightness / 100);
-                ffd9.write(Buffer.from([0x56, r * 0xFF, g * 0xFF, b * 0xFF, 0x00, 0xF0, 0xAA]), false, () => callback());
+                targetBrightness = 0;
+                setColor();
+                callback();
             }
-        }
+        });
 
-        brightnessCharacteristic.on(CharacteristicEventTypes.GET, callback => callback(undefined, brightness));
+        brightnessCharacteristic.on(CharacteristicEventTypes.GET, callback => callback(undefined, targetBrightness));
         brightnessCharacteristic.on(CharacteristicEventTypes.SET, (value, callback) => {
-            brightness = value;
-            setColor(callback);
+            targetBrightness = userBrightness = value;
+            setColor();
+            callback();
         });
 
-        hueCharacteristic.on(CharacteristicEventTypes.GET, callback => callback(undefined, hue));
+        hueCharacteristic.on(CharacteristicEventTypes.GET, callback => callback(undefined, targetHue));
         hueCharacteristic.on(CharacteristicEventTypes.SET, (value, callback) => {
-            hue = value;
-            setColor(callback);
+            targetHue = value;
+            setColor();
+            callback();
         });
 
-        saturationCharacteristic.on(CharacteristicEventTypes.GET, callback => callback(undefined, saturation));
+        saturationCharacteristic.on(CharacteristicEventTypes.GET, callback => callback(undefined, targetSaturation));
         saturationCharacteristic.on(CharacteristicEventTypes.SET, (value, callback) => {
-            saturation = value;
-            setColor(callback);
+            targetSaturation = value;
+            setColor();
+            callback();
         });
 
         // Add the service to the accessory
