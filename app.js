@@ -85,8 +85,12 @@ class TrionesLight {
         // Fade towards target color
         const diffBrightness = this.targetBrightness - this.currentBrightness;
         this.currentBrightness += Math.sign(diffBrightness) * Math.min(Math.abs(diffBrightness), 4);
-        const diffHue = this.targetHue - this.currentHue;
+        const diffHueR = this.targetHue - this.currentHue;
+        const diffHueL = diffHueR - Math.sign(diffHueR) * 360;
+        const diffHue = Math.abs(diffHueL) < Math.abs(diffHueR) ? diffHueL : diffHueR;
         this.currentHue += Math.sign(diffHue) * Math.min(Math.abs(diffHue), 4);
+        if (this.currentHue < 0) this.currentHue += 360;
+        else if (this.currentHue > 360) this.currentHue -= 360;
         const diffSaturation = this.targetSaturation - this.currentSaturation;
         this.currentSaturation += Math.sign(diffSaturation) * Math.min(Math.abs(diffSaturation), 4);
 
