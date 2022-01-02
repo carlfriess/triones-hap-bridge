@@ -53,11 +53,12 @@ noble.on("discover", async (peripheral) => {
         let targetHue = 0;
         let currentSaturation = 0;
         let targetSaturation = 0;
+        let interval = null;
 
         function setColor(next) {
 
             // If a fade is already running do nothing
-            if (!next && this.interval) return;
+            if (!next && interval) return;
 
             // Fade towards target color
             const diffBrightness = targetBrightness - currentBrightness;
@@ -82,13 +83,13 @@ noble.on("discover", async (peripheral) => {
                 ffd9.write(Buffer.from([0xCC, 0x24, 0x33]), false);
             }
 
-            if (!this.interval) {
-                this.interval = setInterval(() => setColor(true), 20);
+            if (!interval) {
+                interval = setInterval(() => setColor(true), 20);
             }
 
             if (diffBrightness === 0 && diffHue === 0 && diffSaturation === 0) {
-                clearInterval(this.interval)
-                this.interval = null;
+                clearInterval(interval)
+                interval = null;
             }
 
         }
