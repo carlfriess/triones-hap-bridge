@@ -1,0 +1,11 @@
+{
+  "name": "triones-hap-bridge",
+  "version": "1.0.0",
+  "description": "HAP bridge for Triones RGBW lights",
+  "main": "app.js",
+  "author": "Carl Friess",
+  "dependencies": {
+    "@abandonware/noble": "^1.9.2-15",
+    "hap-nodejs": "^0.9.8"
+  }
+}
