@@ -26,6 +26,7 @@ class Light {
         this.targetHue = 0;
         this.currentSaturation = 0;
         this.targetSaturation = 0;
+        this.targetPower = true;
         this.interval = null;
         this.frameInterval = 20;
         this.enableFade = true;
@@ -39,6 +40,7 @@ class Light {
         onCharacteristic.on(CharacteristicEventTypes.GET, async callback =>
             callback(undefined, await this.getPower()));
         onCharacteristic.on(CharacteristicEventTypes.SET, async (value, callback) => {
+            this.targetPower = value;
             if (value) {
                 await this.setPower(true);
                 this.targetBrightness = this.userBrightness;
@@ -123,7 +125,7 @@ class Light {
         this.setColor(this.currentHue, this.currentSaturation, this.currentBrightness);
 
         // Turn off light when brightness is zero
-        if (this.currentBrightness === 0) {
+        if (!this.targetPower && this.currentBrightness === 0) {
             this.setPower(false);
         }
 
