@@ -1,3 +1,6 @@
+# hap-nodejs files
+persist/
+
 # Logs
 logs
 *.log
