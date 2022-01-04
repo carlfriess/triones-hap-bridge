@@ -1,3 +1,4 @@
+const _ = require("lodash");
 const noble = require("@abandonware/noble");
 const {TrionesLight} = require("./triones-light");
 const {ElkLight} = require("./elk-light");
@@ -6,11 +7,11 @@ function peripheralSupported(peripheral) {
     return TrionesLight.supports(peripheral) || ElkLight.supports(peripheral);
 }
 
-function newLight(peripheral) {
+function newLight(peripheral, resume) {
     if (TrionesLight.supports(peripheral)) {
-        return new TrionesLight(peripheral);
+        return new TrionesLight(peripheral, resume);
     } else if (ElkLight.supports(peripheral)) {
-        return new ElkLight(peripheral);
+        return new ElkLight(peripheral, resume);
     } else {
         throw Error("Unsupported peripheral");
     }
@@ -19,6 +20,25 @@ function newLight(peripheral) {
 // Map of known devices and their instances
 const lights = {};
 const devices = new Set();
+
+// Update lights @ 50Hz until no light require updates anymore
+let interval;
+function resumeUpdates() {
+    if (interval) return;
+    interval = setInterval(async () => {
+        const done = _.after(Object.keys(lights).length, (busy) => {
+            if (!busy) {
+                clearInterval(interval);
+                interval = null;
+            }
+        });
+        let busy = false;
+        for (const key in lights) {
+            busy = await lights[key].update() || busy;
+            done(busy);
+        }
+    }, 20);
+}
 
 // Wait for Bluetooth adapter to power on and start scanning
 noble.on("stateChange", async state => {
@@ -59,7 +79,7 @@ noble.on("discover", async (peripheral) => {
         if (!lights[peripheral.address]) {
 
             // Instantiate a new light service and track it
-            lights[peripheral.address] = newLight(peripheral);
+            lights[peripheral.address] = newLight(peripheral, resumeUpdates);
 
         } else {
 
@@ -80,10 +100,3 @@ setTimeout(_ => {
     noble.stopScanning();
     console.log("Stopped scanning");
 }, 60000);
-
-// Update lights @ 50Hz
-setInterval(() => {
-    for(const light of Object.values(lights)) {
-        light.update();
-    }
-}, 20);

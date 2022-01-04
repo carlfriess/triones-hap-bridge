@@ -3,8 +3,8 @@ const {hsv2rgb} = require("./util");
 
 class ElkLight extends Light {
 
-    constructor(peripheral) {
-        super(peripheral);
+    constructor(peripheral, resume) {
+        super(peripheral, resume);
         this.power = true;
         this.enableFade = false;
     }

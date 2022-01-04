@@ -19,10 +19,12 @@ class Light {
     userHSV = [0, 0, 100];      // HSV input given by user
     targetPower = null;
     enableFade = true;
+    resume;
 
-    constructor(peripheral) {
+    constructor(peripheral, resume) {
 
         this.name = peripheral.advertisement.localName;
+        this.resume = resume;
 
         // Define a new accessory
         const accessoryUuid = hap.uuid.generate(peripheral.address);
@@ -42,24 +44,28 @@ class Light {
         onCharacteristic.on(CharacteristicEventTypes.SET, async (value, callback) => {
             this.targetPower = value;
             this.targetHSV[2] = value ? this.userHSV[2] : 0;
+            this.resume();
             callback();
         });
 
         brightnessCharacteristic.on(CharacteristicEventTypes.GET, callback => callback(undefined, this.userHSV[2]));
         brightnessCharacteristic.on(CharacteristicEventTypes.SET, (value, callback) => {
             this.targetHSV[2] = this.userHSV[2] = value;
+            this.resume();
             callback();
         });
 
         hueCharacteristic.on(CharacteristicEventTypes.GET, callback => callback(undefined, this.userHSV[0]));
         hueCharacteristic.on(CharacteristicEventTypes.SET, (value, callback) => {
             this.targetHSV[0] = this.userHSV[0] = value;
+            this.resume();
             callback();
         });
 
         saturationCharacteristic.on(CharacteristicEventTypes.GET, callback => callback(undefined, this.userHSV[1]));
         saturationCharacteristic.on(CharacteristicEventTypes.SET, (value, callback) => {
             this.targetHSV[1] = this.userHSV[1] = value;
+            this.resume();
             callback();
         });
 

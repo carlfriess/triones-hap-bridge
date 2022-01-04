@@ -3,8 +3,8 @@ const {hsv2rgb} = require("./util");
 
 class TrionesLight extends Light {
 
-    constructor(peripheral) {
-        super(peripheral)
+    constructor(peripheral, resume) {
+        super(peripheral, resume)
     }
 
     async setPeripheral(peripheral) {
