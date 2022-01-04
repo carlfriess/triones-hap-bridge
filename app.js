@@ -21,7 +21,7 @@ const lights = {};
 const devices = new Set();
 
 // Wait for Bluetooth adapter to power on and start scanning
-noble.on("stateChange", async (state) => {
+noble.on("stateChange", async state => {
     if (state === "poweredOn") {
         await noble.startScanningAsync([], false);
     }
@@ -29,7 +29,7 @@ noble.on("stateChange", async (state) => {
 
 noble.on("discover", async (peripheral) => {
 
-    // Check if we just discovered a Triones device
+    // Check if we just discovered a supported device
     if (peripheralSupported(peripheral)) {
 
         const localName = peripheral.advertisement.localName;
@@ -69,8 +69,21 @@ noble.on("discover", async (peripheral) => {
     }
 });
 
-// Always restart scanning for devices
-noble.on("scanStop", () => setTimeout(() => {
+// Always restart scanning for devices for the first 60 seconds of execution
+const restart = _ => {
     console.log("Restarting scan...");
     noble.startScanning([], false);
-}, 5000));
+};
+noble.on("scanStop", restart);
+setTimeout(_ => {
+    noble.removeListener("scanStop", restart);
+    noble.stopScanning();
+    console.log("Stopped scanning");
+}, 60000);
+
+// Update lights @ 50Hz
+setInterval(() => {
+    for(const light of Object.values(lights)) {
+        light.update();
+    }
+}, 20);

@@ -3,6 +3,10 @@ const {hsv2rgb} = require("./util");
 
 class TrionesLight extends Light {
 
+    constructor(peripheral) {
+        super(peripheral)
+    }
+
     async setPeripheral(peripheral) {
         const {characteristics} = await peripheral.discoverSomeServicesAndCharacteristicsAsync(["ffd0", "ffd5"], ["ffd4", "ffd9"]);
         this.ffd4 = characteristics.filter(c => c.uuid === "ffd4")[0];

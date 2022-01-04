@@ -1,4 +1,6 @@
 const hap = require("hap-nodejs");
+const _ = require("lodash");
+const {diffHSV} = require("./util");
 
 const Accessory = hap.Accessory;
 const Characteristic = hap.Characteristic;
@@ -7,6 +9,16 @@ const Service = hap.Service;
 
 // Generic HomeKit light that uses HSV color controls
 class Light {
+
+    name;
+    accessory;
+    service;
+
+    currentHSV = [0, 0, 100];   // HSV sent to device
+    targetHSV = [0, 0, 100];    // HSV target being faded to
+    userHSV = [0, 0, 100];      // HSV input given by user
+    targetPower = null;
+    enableFade = true;
 
     constructor(peripheral) {
 
@@ -19,18 +31,6 @@ class Light {
         // Define a new light service
         this.service = new Service.Lightbulb(this.name);
 
-        this.currentBrightness = 100;
-        this.targetBrightness = 100;
-        this.userBrightness = 100;
-        this.currentHue = 0;
-        this.targetHue = 0;
-        this.currentSaturation = 0;
-        this.targetSaturation = 0;
-        this.targetPower = true;
-        this.interval = null;
-        this.frameInterval = 20;
-        this.enableFade = true;
-
         // Define characteristics for the light service
         const onCharacteristic = this.service.getCharacteristic(Characteristic.On);
         const brightnessCharacteristic = this.service.getCharacteristic(Characteristic.Brightness);
@@ -41,40 +41,25 @@ class Light {
             callback(undefined, await this.getPower()));
         onCharacteristic.on(CharacteristicEventTypes.SET, async (value, callback) => {
             this.targetPower = value;
-            if (value) {
-                await this.setPower(true);
-                this.targetBrightness = this.userBrightness;
-                this.update();
-                callback();
-            } else {
-                if (!this.enableFade) {
-                    await this.setPower(false);
-                } else {
-                    this.targetBrightness = 0;
-                    this.update();
-                }
-                callback();
-            }
+            this.targetHSV[2] = value ? this.userHSV[2] : 0;
+            callback();
         });
 
-        brightnessCharacteristic.on(CharacteristicEventTypes.GET, callback => callback(undefined, this.targetBrightness));
+        brightnessCharacteristic.on(CharacteristicEventTypes.GET, callback => callback(undefined, this.userHSV[2]));
         brightnessCharacteristic.on(CharacteristicEventTypes.SET, (value, callback) => {
-            this.targetBrightness = this.userBrightness = value;
-            this.update();
+            this.targetHSV[2] = this.userHSV[2] = value;
             callback();
         });
 
-        hueCharacteristic.on(CharacteristicEventTypes.GET, callback => callback(undefined, this.targetHue));
+        hueCharacteristic.on(CharacteristicEventTypes.GET, callback => callback(undefined, this.userHSV[0]));
         hueCharacteristic.on(CharacteristicEventTypes.SET, (value, callback) => {
-            this.targetHue = value;
-            this.update();
+            this.targetHSV[0] = this.userHSV[0] = value;
             callback();
         });
 
-        saturationCharacteristic.on(CharacteristicEventTypes.GET, callback => callback(undefined, this.targetSaturation));
+        saturationCharacteristic.on(CharacteristicEventTypes.GET, callback => callback(undefined, this.userHSV[1]));
         saturationCharacteristic.on(CharacteristicEventTypes.SET, (value, callback) => {
-            this.targetSaturation = value;
-            this.update();
+            this.targetHSV[1] = this.userHSV[1] = value;
             callback();
         });
 
@@ -96,47 +81,42 @@ class Light {
         })
     }
 
-    update(next) {
+    async update() {
 
-        // If a fade is already running do nothing
-        if (!next && this.interval) return;
+        // Do nothing if the current and target colors are identical
+        if (typeof this.targetPower !== "boolean" && _.isEqual(this.currentHSV, this.targetHSV)) return false;
 
-        // Skip to target if fade is disabled
-        if (!this.enableFade) {
-            this.currentBrightness = this.targetBrightness;
-            this.currentHue = this.targetHue;
-            this.currentSaturation = this.targetSaturation;
+        if (this.enableFade) {
+
+            // Fade towards target color
+            const rate = 4;
+            const diff = diffHSV(this.currentHSV, this.targetHSV).map(v => _.clamp(v, -rate, rate));
+            this.currentHSV = this.currentHSV.map((e, i) => e + diff[i]);
+            this.currentHSV[0] = ((this.currentHSV[0] % 360) + 360) % 360;  // Wrap around hue values
+
+        } else {
+
+            // Set current color to target color
+            this.currentHSV = _.clone(this.targetHSV);
+
         }
 
-        // Fade towards target color
-        const step = this.frameInterval / 5;
-        const diffBrightness = this.targetBrightness - this.currentBrightness;
-        this.currentBrightness += Math.sign(diffBrightness) * Math.min(Math.abs(diffBrightness), step);
-        const diffHueR = this.targetHue - this.currentHue;
-        const diffHueL = diffHueR - Math.sign(diffHueR) * 360;
-        const diffHue = Math.abs(diffHueL) < Math.abs(diffHueR) ? diffHueL : diffHueR;
-        this.currentHue += Math.sign(diffHue) * Math.min(Math.abs(diffHue), step);
-        if (this.currentHue < 0) this.currentHue += 360;
-        else if (this.currentHue > 360) this.currentHue -= 360;
-        const diffSaturation = this.targetSaturation - this.currentSaturation;
-        this.currentSaturation += Math.sign(diffSaturation) * Math.min(Math.abs(diffSaturation), step);
+        // Turn on light
+        if (this.targetPower === true) {
+            this.targetPower = null;
+            await this.setPower(true);
+        }
 
         // Set the color of the light
-        this.setColor(this.currentHue, this.currentSaturation, this.currentBrightness);
+        await this.setColor(...this.currentHSV);
 
         // Turn off light when brightness is zero
-        if (!this.targetPower && this.currentBrightness === 0) {
-            this.setPower(false);
+        if (this.targetPower === false && this.currentHSV[2] === 0) {
+            this.targetPower = null;
+            await this.setPower(false);
         }
 
-        if (!this.interval) {
-            this.interval = setInterval(() => this.update(true), this.frameInterval);
-        }
-
-        if (diffBrightness === 0 && diffHue === 0 && diffSaturation === 0) {
-            clearInterval(this.interval)
-            this.interval = null;
-        }
+        return true;
     }
 
     // Links this service instance with the given BLE peripheral

@@ -4,4 +4,11 @@ function hsv2rgb(h, s, v) {
     return [f(5), f(3), f(1)];
 }
 
-module.exports = {hsv2rgb};
+function diffHSV(base, target) {
+    const diff = target.map((e, i) => e - base[i]);
+    const diffHueL = diff[0] - Math.sign(diff[0]) * 360;
+    diff[0] = Math.abs(diffHueL) < Math.abs(diff[0]) ? diffHueL : diff[0];
+    return diff;
+}
+
+module.exports = {hsv2rgb, diffHSV};
