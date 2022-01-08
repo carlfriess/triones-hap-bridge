@@ -47,6 +47,24 @@ noble.on("stateChange", async state => {
     }
 });
 
+// Always restart scanning for devices for the first 60 seconds of execution or if a device is disconnected
+let initialScan = true;
+function restartScan() {
+    if (initialScan || _.difference(Object.keys(lights), [...devices]).length) {
+        console.log("Restarting scan...");
+        noble.startScanning([], false);
+    } else {
+        console.log("Stopped scanning");
+    }
+}
+noble.on("scanStop", restartScan);
+setTimeout(() => {
+    initialScan = false;
+    if (!_.difference(Object.keys(lights), [...devices]).length) {
+        noble.stopScanning();
+    }
+}, 60000);
+
 noble.on("discover", async (peripheral) => {
 
     // Check if we just discovered a supported device
@@ -73,6 +91,7 @@ noble.on("discover", async (peripheral) => {
         peripheral.on("disconnect", () => {
             console.log(`${ peripheral.address } DISCONNECTED`);
             devices.delete(peripheral.address);
+            restartScan();
         });
 
         // Check if the peripheral has previously been initialized
@@ -88,15 +107,3 @@ noble.on("discover", async (peripheral) => {
         }
     }
 });
-
-// Always restart scanning for devices for the first 60 seconds of execution
-const restart = _ => {
-    console.log("Restarting scan...");
-    noble.startScanning([], false);
-};
-noble.on("scanStop", restart);
-setTimeout(_ => {
-    noble.removeListener("scanStop", restart);
-    noble.stopScanning();
-    console.log("Stopped scanning");
-}, 60000);
